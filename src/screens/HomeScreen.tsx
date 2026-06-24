@@ -4,6 +4,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Audio, ResizeMode, Video } from 'expo-av';
 import { Asset } from 'expo-asset';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
@@ -557,6 +558,118 @@ function HeroSection({ onEnter, onOpenEnvelope }: HeroSectionProps) {
   );
 }
 
+// ─── CCTV Reveal (discard path) ─────────────────────────────────────────────
+
+function CCTVReveal() {
+  const navigation = useNavigation<HomeNavigation>();
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraOpacity = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const btnOpacity = useRef(new Animated.Value(0)).current;
+  const livePulse = useRef(new Animated.Value(1)).current;
+  const [timestamp, setTimestamp] = useState('');
+
+  useEffect(() => {
+    const tick = () => {
+      const n = new Date();
+      const p = (x: number) => String(x).padStart(2, '0');
+      setTimestamp(
+        `${n.getFullYear()}:${p(n.getMonth() + 1)}:${p(n.getDate())}  ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`
+      );
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    void requestPermission();
+
+    // Envelope slides off in 400ms — start CCTV feed after 600ms black screen
+    const fadeIn = setTimeout(() => {
+      Animated.timing(cameraOpacity, { toValue: 1, duration: 900, useNativeDriver: true }).start();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(livePulse, { toValue: 0.1, duration: 500, useNativeDriver: true }),
+          Animated.timing(livePulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
+      ).start();
+    }, 600);
+
+    const showText = setTimeout(() => {
+      void playOneShotAudio(ENVELOPE_FOLLOW_UP_AUDIO.discard);
+      Animated.timing(textOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+    }, 2200);
+
+    const showBtn = setTimeout(() => {
+      Animated.timing(btnOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    }, 4000);
+
+    return () => {
+      clearTimeout(fadeIn);
+      clearTimeout(showText);
+      clearTimeout(showBtn);
+    };
+  }, [btnOpacity, cameraOpacity, livePulse, requestPermission, textOpacity]);
+
+  return (
+    <View style={styles.cctvContainer}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: cameraOpacity }]}>
+        {permission?.granted ? (
+          <CameraView style={StyleSheet.absoluteFill} facing="front" />
+        ) : (
+          <Image
+            source={ENVELOPE_REVEAL_IMAGES.discard}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Night-vision tint */}
+        <View style={styles.cctvTint} />
+
+        {/* Vignette */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.75)']}
+          locations={[0, 0.45, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+
+        {/* Header row */}
+        <View style={styles.cctvHeader}>
+          <View style={styles.cctvLiveRow}>
+            <Animated.View style={[styles.cctvLiveDot, { opacity: livePulse }]} />
+            <Text style={styles.cctvLiveLabel}>LIVE</Text>
+          </View>
+          <Text style={styles.cctvTimestamp}>{timestamp}</Text>
+        </View>
+
+        {/* Footer row */}
+        <View style={styles.cctvFooter}>
+          <Text style={styles.cctvCamId}>CAM 04 — PARTICULIER</Text>
+          <Text style={styles.cctvCamId}>GWT-SEC v1.0</Text>
+        </View>
+      </Animated.View>
+
+      {/* Response text */}
+      <Animated.Text style={[styles.cctvResponseText, { opacity: textOpacity }]}>
+        {ENVELOPE_RESPONSES.discard}
+      </Animated.Text>
+
+      {/* Chapter button */}
+      <Animated.View style={[styles.envelopeChapterWrap, { opacity: btnOpacity }]}>
+        <Pressable
+          style={({ pressed }) => [styles.envelopeChapterBtn, pressed && styles.btnPressed]}
+          onPress={() => navigation.navigate('Reading', { chapterId: '1', bookId: 'geen-weg-terug' })}
+        >
+          <Text style={styles.envelopeChapterBtnText}>Lees hoofdstuk 1</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 // ─── Section 2: Envelope ────────────────────────────────────────────────────
 
 interface EnvelopeSectionProps {
@@ -831,7 +944,6 @@ function StyledEnvelope({ pulseSeal = false }: StyledEnvelopeProps) {
 }
 
 function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
-  const navigation = useNavigation<HomeNavigation>();
   const [assetsReady, setAssetsReady] = useState(false);
 
   useEffect(() => {
@@ -848,9 +960,6 @@ function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
   const envelopeOpacity = useRef(new Animated.Value(1)).current;
   const envelopeTranslateX = useRef(new Animated.Value(0)).current;
   const envelopeRotate = useRef(new Animated.Value(0)).current;
-  const imageOpacity = useRef(new Animated.Value(0)).current;
-  const responseOpacity = useRef(new Animated.Value(0)).current;
-  const chapterBtnOpacity = useRef(new Animated.Value(0)).current;
   const hasAnimatedChoice = useRef(false);
 
   const envRotate = envelopeRotate.interpolate({
@@ -910,37 +1019,21 @@ function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
 
     void playEnvelopeSound();
 
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(envelopeTranslateX, {
-          toValue: 400,
-          duration: 400,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(envelopeRotate, {
-          toValue: 20,
-          duration: 400,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(imageOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(responseOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(chapterBtnOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+    Animated.parallel([
+      Animated.timing(envelopeTranslateX, {
+        toValue: 400,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(envelopeRotate, {
+        toValue: 20,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
     ]).start();
-
-    setTimeout(() => {
-      void playOneShotAudio(ENVELOPE_FOLLOW_UP_AUDIO.discard);
-    }, 450);
-  }, [
-    chapterBtnOpacity,
-    choice,
-    envelopeRotate,
-    envelopeTranslateX,
-    imageOpacity,
-    responseOpacity,
-  ]);
+  }, [choice, envelopeRotate, envelopeTranslateX]);
 
   return (
     <View style={styles.envelopeCard}>
@@ -990,28 +1083,7 @@ function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
         </View>
       ) : null}
 
-      {choice === 'discard' ? (
-        <>
-          <Animated.Image
-            source={ENVELOPE_REVEAL_IMAGES.discard}
-            style={[styles.envelopeRevealImage, { opacity: imageOpacity }]}
-            resizeMode="cover"
-          />
-          <Animated.Text style={[styles.envelopeResponse, { opacity: responseOpacity }]}>
-            {ENVELOPE_RESPONSES.discard}
-          </Animated.Text>
-          <Animated.View style={[styles.envelopeChapterWrap, { opacity: chapterBtnOpacity }]}>
-            <Pressable
-              style={({ pressed }) => [styles.envelopeChapterBtn, pressed && styles.btnPressed]}
-              onPress={() =>
-                navigation.navigate('Reading', { chapterId: '1', bookId: 'geen-weg-terug' })
-              }
-            >
-              <Text style={styles.envelopeChapterBtnText}>Lees hoofdstuk 1</Text>
-            </Pressable>
-          </Animated.View>
-        </>
-      ) : null}
+      {choice === 'discard' ? <CCTVReveal /> : null}
     </View>
   );
 }
@@ -1571,6 +1643,77 @@ const styles = StyleSheet.create({
     height: 250,
     borderRadius: 8,
     marginBottom: spacing.md,
+  },
+  cctvContainer: {
+    width: '100%',
+    height: 320,
+    backgroundColor: '#000',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginVertical: spacing.md,
+  },
+  cctvTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 255, 80, 0.05)',
+  },
+  cctvHeader: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  cctvLiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  cctvLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#FF1744',
+  },
+  cctvLiveLabel: {
+    color: '#FF1744',
+    fontSize: 10,
+    fontFamily: 'Courier New',
+    fontWeight: '700' as const,
+    letterSpacing: 2,
+  },
+  cctvTimestamp: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 9,
+    fontFamily: 'Courier New',
+    letterSpacing: 1,
+  },
+  cctvFooter: {
+    position: 'absolute',
+    bottom: 10,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    zIndex: 10,
+  },
+  cctvCamId: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 8,
+    fontFamily: 'Courier New',
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+  },
+  cctvResponseText: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+    lineHeight: 22,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   openRevealEnvelopeWrap: {
     marginVertical: spacing.lg,

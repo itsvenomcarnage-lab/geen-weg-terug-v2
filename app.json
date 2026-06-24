@@ -11,7 +11,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "backgroundColor": "#050505"
+      "backgroundColor": "#050505",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Geen Weg Terug gebruikt je camera voor een verhaalmoment."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +40,13 @@
           "backgroundColor": "#050505"
         }
       ],
-      "expo-av"
+      "expo-av",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Geen Weg Terug gebruikt je camera voor een verhaalmoment."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
