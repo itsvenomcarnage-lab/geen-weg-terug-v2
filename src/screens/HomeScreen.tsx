@@ -560,11 +560,22 @@ function HeroSection({ onEnter, onOpenEnvelope }: HeroSectionProps) {
 
 // ─── CCTV Reveal (discard path) ─────────────────────────────────────────────
 
+function CCTVScanLines() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {Array.from({ length: 80 }).map((_, i) => (
+        <View key={i} style={styles.cctvScanLine} />
+      ))}
+    </View>
+  );
+}
+
 function CCTVReveal() {
   const navigation = useNavigation<HomeNavigation>();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraOpacity = useRef(new Animated.Value(0)).current;
-  const textOpacity = useRef(new Animated.Value(0)).current;
+  const line1Opacity = useRef(new Animated.Value(0)).current;
+  const line2Opacity = useRef(new Animated.Value(0)).current;
   const btnOpacity = useRef(new Animated.Value(0)).current;
   const livePulse = useRef(new Animated.Value(1)).current;
   const [timestamp, setTimestamp] = useState('');
@@ -585,8 +596,8 @@ function CCTVReveal() {
   useEffect(() => {
     void requestPermission();
 
-    // Envelope slides off in 400ms — start CCTV feed after 600ms black screen
-    const fadeIn = setTimeout(() => {
+    // 600ms zwart → camera faded in
+    const t1 = setTimeout(() => {
       Animated.timing(cameraOpacity, { toValue: 1, duration: 900, useNativeDriver: true }).start();
       Animated.loop(
         Animated.sequence([
@@ -596,21 +607,24 @@ function CCTVReveal() {
       ).start();
     }, 600);
 
-    const showText = setTimeout(() => {
+    // Regel 1: "Je dacht dat je veilig was."
+    const t2 = setTimeout(() => {
       void playOneShotAudio(ENVELOPE_FOLLOW_UP_AUDIO.discard);
-      Animated.timing(textOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start();
-    }, 2200);
+      Animated.timing(line1Opacity, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+    }, 2000);
 
-    const showBtn = setTimeout(() => {
+    // Regel 2: "Hij kijkt al." — 1.5s later
+    const t3 = setTimeout(() => {
+      Animated.timing(line2Opacity, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+    }, 3500);
+
+    // Knop
+    const t4 = setTimeout(() => {
       Animated.timing(btnOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-    }, 4000);
+    }, 5000);
 
-    return () => {
-      clearTimeout(fadeIn);
-      clearTimeout(showText);
-      clearTimeout(showBtn);
-    };
-  }, [btnOpacity, cameraOpacity, livePulse, requestPermission, textOpacity]);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+  }, [btnOpacity, cameraOpacity, line1Opacity, line2Opacity, livePulse, requestPermission]);
 
   return (
     <>
@@ -620,12 +634,12 @@ function CCTVReveal() {
           {permission?.granted ? (
             <CameraView style={StyleSheet.absoluteFill} facing="front" />
           ) : (
-            <Image
-              source={ENVELOPE_REVEAL_IMAGES.discard}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
+            // Fallback: donker scherm — op echte telefoon zie je jezelf
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0a0a0a' }]} />
           )}
+
+          {/* Scan lines */}
+          <CCTVScanLines />
 
           {/* Night-vision tint */}
           <View style={styles.cctvTint} />
@@ -655,9 +669,14 @@ function CCTVReveal() {
         </Animated.View>
       </View>
 
-      {/* Response text — below the frame */}
-      <Animated.Text style={[styles.cctvResponseText, { opacity: textOpacity }]}>
-        {ENVELOPE_RESPONSES.discard}
+      {/* Tekst regel 1 */}
+      <Animated.Text style={[styles.cctvResponseText, { opacity: line1Opacity }]}>
+        Je dacht dat je veilig was.
+      </Animated.Text>
+
+      {/* Tekst regel 2 */}
+      <Animated.Text style={[styles.cctvResponseText, styles.cctvResponseLine2, { opacity: line2Opacity }]}>
+        Hij kijkt al.
       </Animated.Text>
 
       {/* Chapter button — below the text */}
@@ -1715,6 +1734,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase' as const,
   },
+  cctvScanLine: {
+    height: 1,
+    marginBottom: 3,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
   cctvResponseText: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.85)',
@@ -1723,6 +1747,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: spacing.md,
     paddingHorizontal: spacing.sm,
+  },
+  cctvResponseLine2: {
+    fontSize: 18,
+    color: '#FF1744',
+    fontStyle: 'italic' as const,
+    fontWeight: '600' as const,
+    marginTop: spacing.xs,
   },
   openRevealEnvelopeWrap: {
     marginVertical: spacing.lg,
