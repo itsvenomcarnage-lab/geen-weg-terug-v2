@@ -218,13 +218,17 @@ export function HomeScreen() {
       </ScrollView>
 
       <Pressable
-        style={[styles.audioToggle, { bottom: insets.bottom + 88 }]}
+        style={[styles.audioToggle, { top: insets.top + spacing.md }]}
         onPress={() => {
           void Haptics.selectionAsync();
           setAmbientAudioEnabled((prev) => !prev);
         }}
       >
-        <Text style={styles.audioToggleIcon}>{ambientAudioEnabled ? '🔊' : '🔇'}</Text>
+        <Ionicons
+          name={ambientAudioEnabled ? 'volume-high' : 'volume-mute'}
+          size={20}
+          color="#FF1744"
+        />
       </Pressable>
     </View>
   );
@@ -904,42 +908,31 @@ function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
     if (!choice || choice === 'open' || hasAnimatedChoice.current) return;
     hasAnimatedChoice.current = true;
 
-    const revealOutcome = (followUpAudio: number) => {
-      void playOneShotAudio(followUpAudio);
-      Animated.timing(imageOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        Animated.timing(responseOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }).start(() => {
-          Animated.timing(chapterBtnOpacity, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }).start();
-        });
-      });
-    };
-
     void playEnvelopeSound();
-    Animated.parallel([
-      Animated.timing(envelopeTranslateX, {
-        toValue: 400,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(envelopeRotate, {
-        toValue: 20,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start(() => revealOutcome(ENVELOPE_FOLLOW_UP_AUDIO.discard));
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(envelopeTranslateX, {
+          toValue: 400,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(envelopeRotate, {
+          toValue: 20,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(imageOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(responseOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(chapterBtnOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+    ]).start();
+
+    setTimeout(() => {
+      void playOneShotAudio(ENVELOPE_FOLLOW_UP_AUDIO.discard);
+    }, 450);
   }, [
     chapterBtnOpacity,
     choice,
@@ -1359,7 +1352,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   heroVideo: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: -200,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   heroRedGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -1999,8 +1996,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 6,
     elevation: 6,
-  },
-  audioToggleIcon: {
-    fontSize: 20,
   },
 });
