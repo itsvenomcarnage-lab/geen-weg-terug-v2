@@ -613,51 +613,54 @@ function CCTVReveal() {
   }, [btnOpacity, cameraOpacity, livePulse, requestPermission, textOpacity]);
 
   return (
-    <View style={styles.cctvContainer}>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: cameraOpacity }]}>
-        {permission?.granted ? (
-          <CameraView style={StyleSheet.absoluteFill} facing="front" />
-        ) : (
-          <Image
-            source={ENVELOPE_REVEAL_IMAGES.discard}
+    <>
+      {/* CCTV camera frame */}
+      <View style={styles.cctvContainer}>
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: cameraOpacity }]}>
+          {permission?.granted ? (
+            <CameraView style={StyleSheet.absoluteFill} facing="front" />
+          ) : (
+            <Image
+              source={ENVELOPE_REVEAL_IMAGES.discard}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          )}
+
+          {/* Night-vision tint */}
+          <View style={styles.cctvTint} />
+
+          {/* Vignette */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.75)']}
+            locations={[0, 0.45, 1]}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
+            pointerEvents="none"
           />
-        )}
 
-        {/* Night-vision tint */}
-        <View style={styles.cctvTint} />
-
-        {/* Vignette */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.75)']}
-          locations={[0, 0.45, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-
-        {/* Header row */}
-        <View style={styles.cctvHeader}>
-          <View style={styles.cctvLiveRow}>
-            <Animated.View style={[styles.cctvLiveDot, { opacity: livePulse }]} />
-            <Text style={styles.cctvLiveLabel}>LIVE</Text>
+          {/* Header row */}
+          <View style={styles.cctvHeader}>
+            <View style={styles.cctvLiveRow}>
+              <Animated.View style={[styles.cctvLiveDot, { opacity: livePulse }]} />
+              <Text style={styles.cctvLiveLabel}>LIVE</Text>
+            </View>
+            <Text style={styles.cctvTimestamp}>{timestamp}</Text>
           </View>
-          <Text style={styles.cctvTimestamp}>{timestamp}</Text>
-        </View>
 
-        {/* Footer row */}
-        <View style={styles.cctvFooter}>
-          <Text style={styles.cctvCamId}>CAM 04 — PARTICULIER</Text>
-          <Text style={styles.cctvCamId}>GWT-SEC v1.0</Text>
-        </View>
-      </Animated.View>
+          {/* Footer row */}
+          <View style={styles.cctvFooter}>
+            <Text style={styles.cctvCamId}>CAM 04 — PARTICULIER</Text>
+            <Text style={styles.cctvCamId}>GWT-SEC v1.0</Text>
+          </View>
+        </Animated.View>
+      </View>
 
-      {/* Response text */}
+      {/* Response text — below the frame */}
       <Animated.Text style={[styles.cctvResponseText, { opacity: textOpacity }]}>
         {ENVELOPE_RESPONSES.discard}
       </Animated.Text>
 
-      {/* Chapter button */}
+      {/* Chapter button — below the text */}
       <Animated.View style={[styles.envelopeChapterWrap, { opacity: btnOpacity }]}>
         <Pressable
           style={({ pressed }) => [styles.envelopeChapterBtn, pressed && styles.btnPressed]}
@@ -666,7 +669,7 @@ function CCTVReveal() {
           <Text style={styles.envelopeChapterBtnText}>Lees hoofdstuk 1</Text>
         </Pressable>
       </Animated.View>
-    </View>
+    </>
   );
 }
 
@@ -1037,17 +1040,23 @@ function EnvelopeSection({ choice, onOpen, onDiscard }: EnvelopeSectionProps) {
 
   return (
     <View style={styles.envelopeCard}>
-      <Text style={styles.envelopeIntroLine1}>
-        Een envelop. Geen naam. Geen afzender.
-      </Text>
-      <Text style={styles.envelopeIntroLine2}>Wat doe je?</Text>
+      {choice !== 'discard' ? (
+        <>
+          <Text style={styles.envelopeIntroLine1}>
+            Een envelop. Geen naam. Geen afzender.
+          </Text>
+          <Text style={styles.envelopeIntroLine2}>Wat doe je?</Text>
+        </>
+      ) : null}
 
+      {/* Envelope — position absolute when discarding so it doesn't hold layout space */}
       {choice !== 'open' ? (
         <Animated.View
-          style={{
-            transform: [{ translateX: choice ? 0 : shakeX }],
-            marginVertical: spacing.lg,
-          }}
+          style={
+            choice === 'discard'
+              ? { position: 'absolute', left: 0, right: 0, transform: [{ translateX: 0 }] }
+              : { transform: [{ translateX: shakeX }], marginVertical: spacing.lg }
+          }
         >
           <Animated.View
             style={{
